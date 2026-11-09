@@ -1,16 +1,24 @@
-# AutoML Research Stack Complete Project Guide
+# AutoML Research Stack — Complete Project Guide
 
 > **Read this if you have never seen this project before.**
 > It explains what the project is, why it exists, how all the pieces fit together, and
 > how to install and run the *entire* system on your own laptop from a blank slate —
-> starting with "install Docker and Ollama" and ending with "I just generated a machine
-> learning pipeline with an AI and scored it." No prior knowledge of the project is
+> starting with "install Docker and get an AI API key" and ending with "I just generated a
+> machine learning pipeline with an AI and scored it." No prior knowledge of the project is
 > assumed. Where a technical word first appears, it is explained in plain English.
 
-**Project name:** VESIT AutoML *LLM-Driven AutoML Conditioned on Dataset Meta-Features*
+**Project name:** VESIT AutoML — *LLM-Driven AutoML Conditioned on Dataset Meta-Features*
 **GitHub organization:** [Major-Proj-AutoML](https://github.com/Major-Proj-AutoML)
 **Archived with a permanent DOI:** [10.5281/zenodo.23543993](https://doi.org/10.5281/zenodo.23543993)
 **License:** dual MIT OR Apache-2.0
+
+> **What changed recently (Nov 2026):** the stack now talks to **OpenRouter** (a hosted,
+> OpenAI-compatible API) for its AI by default, instead of Ollama. This is because Ollama
+> retired the free *cloud* models the project used to rely on. You now just need a free
+> **OpenRouter API key** — no large model download, no GPU. A local **Ollama** is still
+> supported as an optional fallback. Separately, **MinIO** (the old file-storage service)
+> is **disabled by default** — generated scripts and models are kept on a shared folder and
+> downloaded through the API instead. Both changes are reflected throughout this guide.
 
 ---
 
@@ -18,10 +26,10 @@
 
 1. [What is this project, in one minute](#1-what-is-this-project-in-one-minute)
 2. [The research idea (the actual point of all this)](#2-the-research-idea-the-actual-point-of-all-this)
-3. [Jargon buster every scary word, explained](#3-jargon-buster--every-scary-word-explained)
+3. [Jargon buster — every scary word, explained](#3-jargon-buster--every-scary-word-explained)
 4. [How the system is built (architecture)](#4-how-the-system-is-built-architecture)
 5. [The repositories at a glance](#5-the-repositories-at-a-glance)
-6. [SETUP from a blank laptop to a running stack](#6-setup--from-a-blank-laptop-to-a-running-stack)
+6. [SETUP — from a blank laptop to a running stack](#6-setup--from-a-blank-laptop-to-a-running-stack)
 7. [USING the system](#7-using-the-system)
 8. [Running the research experiments (sweeps & analysis)](#8-running-the-research-experiments-sweeps--analysis)
 9. [Repo-by-repo deep dive](#9-repo-by-repo-deep-dive)
@@ -38,7 +46,7 @@
 Normally, building a machine-learning model for a dataset is a human job: a data
 scientist looks at the data, decides how to clean it, picks an algorithm, writes the
 code, trains it, and checks the score. **This project asks a Large Language Model (an AI
-like the one behind ChatGPT) to do that job automatically** you hand it a spreadsheet
+like the one behind ChatGPT) to do that job automatically** — you hand it a spreadsheet
 (a `.csv` file) and it writes a complete Python machine-learning program, runs that
 program, and reports how well the resulting model performs.
 
@@ -50,10 +58,14 @@ that makes this a university major project is the question:
 > just hand it the raw task?**
 
 Those statistical fingerprints are called **meta-features** (literally "features about
-the data itself" how many rows, how much is missing, how skewed the numbers are, how
+the data itself" — how many rows, how much is missing, how skewed the numbers are, how
 imbalanced the categories are, and so on). The project builds three AI "prompting styles"
-**B0, B1, B2** that differ only in *how much information about the dataset the AI is
+— **B0, B1, B2** — that differ only in *how much information about the dataset the AI is
 given*, and then compares them head-to-head on real datasets.
+
+The AI itself is **not** something you install or train. The system calls a hosted model
+through **OpenRouter** over the internet using an API key you provide — so even a laptop
+with no GPU can run the whole thing.
 
 The whole thing is packaged as a set of small cooperating web services (a
 **microservice** architecture) that you start with a single command, plus a web page and
@@ -70,7 +82,7 @@ conditions**. They are identical except for how much context the AI receives:
 
 | Condition | Codename | What the AI is told | Analogy |
 |---|---|---|---|
-| **B0** | `b0_naive` | *Only* the task: "write me a scikit-learn pipeline for this task." Nothing about the data. | Asking a chef to cook "something with chicken" no recipe, no pantry list. |
+| **B0** | `b0_naive` | *Only* the task: "write me a scikit-learn pipeline for this task." Nothing about the data. | Asking a chef to cook "something with chicken" — no recipe, no pantry list. |
 | **B1** | `b1_schema` | The task **+ the dataset's schema**: column names, their types, and the first 3 rows. | The chef now sees the ingredients list. |
 | **B2** | `b2_metafeature` | The task + schema **+ a full meta-feature profile + explicit decision rules + a mandatory, machine-checked "reasoning trace".** | The chef sees the ingredients, their freshness/quantities, *and* a rulebook and must write down which rule justified each step. |
 
@@ -90,7 +102,7 @@ From the experiment sweeps run with this system:
   other. No condition dominates on score. The story is **not** "B2 is more accurate."
 - **B2's cost is real:** it uses 10–20× more tokens and finishes fewer runs (some models
   "run away" and blow past token limits).
-- **B2's true contribution is *faithfulness*, not accuracy** the ability to *mechanically
+- **B2's true contribution is *faithfulness*, not accuracy** — the ability to *mechanically
   verify* that the AI's stated reasoning actually matches the code it wrote.
 
 ### The research contribution: RIR / PIR verification
@@ -102,12 +114,12 @@ This is the newest and most novel part of the project, titled:
 The idea: an AI can *say* it did one thing and *actually code* another. This project builds
 a verifier that compares the two mechanically:
 
-- **RIR Reasoning Intermediate Representation:** the AI's *plan*, parsed into a list of
+- **RIR — Reasoning Intermediate Representation:** the AI's *plan*, parsed into a list of
   atomic, checkable "claims" (e.g. *"I scaled `Fare` with `RobustScaler` because its
   outlier ratio 0.128 exceeds 0.05"*).
-- **PIR Program Intermediate Representation:** what the *generated code actually does*,
+- **PIR — Program Intermediate Representation:** what the *generated code actually does*,
   extracted by statically parsing the Python source (its imports, the classes it uses, the
-  columns it touches) using Python's built-in `ast` module no need to run the code.
+  columns it touches) using Python's built-in `ast` module — no need to run the code.
 
 The verifier checks whether the RIR (what was promised) lines up with the PIR (what was
 built). If the AI claims a number it never read, or cites a class it never imported, the
@@ -131,18 +143,20 @@ The analysis service answers these over all completed runs:
 
 ---
 
-## 3. Jargon buster every scary word, explained
+## 3. Jargon buster — every scary word, explained
 
 | Term | Plain-English meaning |
 |---|---|
 | **LLM (Large Language Model)** | The AI that writes text/code (think ChatGPT). Here it writes Python ML programs. |
-| **AutoML** | Automated Machine Learning getting software (here, an LLM) to build ML models for you. |
+| **AutoML** | Automated Machine Learning — getting software (here, an LLM) to build ML models for you. |
 | **Pipeline** | A single Python script that loads data → cleans it → trains a model → scores it. |
 | **Dataset** | A table of data, here a `.csv` file (like a spreadsheet). One column is the **target** you want to predict. |
 | **Target column** | The column the model should learn to predict (e.g. house price, or "survived yes/no"). |
 | **Task type** | What kind of prediction: `regression` (a number), `binary_classification` (yes/no), `multiclass_classification` (one of several labels). |
 | **Meta-feature** | A statistic *about the dataset as a whole* (row count, % missing, skewness, class imbalance, etc.). The star of this research. |
-| **Ollama** | A free program that runs LLMs for you and exposes them at `http://localhost:11434`. This project talks to Ollama to get its AI. |
+| **OpenRouter** | A hosted service that gives you one API key to reach many AI models through a single OpenAI-compatible endpoint (`https://openrouter.ai/api/v1`). **This is the project's default AI provider** — the worker calls it over the internet. Get a key at <https://openrouter.ai/keys>. |
+| **Ollama** *(optional)* | A free program that runs LLMs on your *own* machine at `http://localhost:11434`. The project can use it as a **fallback** instead of OpenRouter (set `LLM_PROVIDER=ollama`). Not required for the default setup. |
+| **API key** | A secret token that proves you're allowed to use a paid/free API. Here, your `OPENROUTER_API_KEY`. Keep it out of screenshots and git. |
 | **Docker / Docker Desktop** | Software that runs each service in an isolated "container" so you don't install databases and Python by hand. One command starts everything. |
 | **Container** | A lightweight, self-contained box running one piece of software (one service, the database, etc.). |
 | **Microservice** | One small web service that does *one* job. This project is ~9 of them cooperating. |
@@ -150,10 +164,10 @@ The analysis service answers these over all completed runs:
 | **Gateway** | A single "front door" service that forwards your request to whichever backend service should handle it. |
 | **Postgres** | The SQL database that stores datasets, meta-features, and run results permanently. |
 | **Redis** | A fast in-memory store used here as a **job queue** (a to-do list for the worker). |
-| **RQ (as in "RQ job")** | *Redis Queue* the library that puts "generate a pipeline" jobs on the queue for the worker to pick up. (Not to be confused with RQ1–RQ5 research questions above.) |
+| **RQ (as in "RQ job")** | *Redis Queue* — the library that puts "generate a pipeline" jobs on the queue for the worker to pick up. (Not to be confused with RQ1–RQ5 research questions above.) |
 | **Worker** | A background process that pulls jobs off the queue and actually does the slow work (calling the LLM, running code). |
-| **MinIO** | A storage service (an S3-compatible "file bucket") that keeps the generated `.py` scripts and trained `model.joblib` files. |
-| **Streamlit** | A Python library for quick web apps the simple upload-and-run web page lives here. |
+| **MinIO** *(disabled by default)* | An S3-compatible "file bucket" service that *used* to store generated scripts/models. It is **turned off by default** now (its public images became unavailable); artifacts are kept on a shared folder and served through the API instead. Re-enablable — see `automl-infra` compose comments. |
+| **Streamlit** | A Python library for quick web apps — the simple upload-and-run web page lives here. |
 | **Seed** | A fixed number that makes randomness repeatable, so the same run gives the same result. |
 | **Sweep** | Running *many* combinations at once (every dataset × every condition × every model × every seed) to gather experiment data. |
 | **Faithfulness** | Whether the AI's stated reasoning actually matches the code it produced (the RIR vs PIR check). |
@@ -162,9 +176,11 @@ The analysis service answers these over all completed runs:
 
 ## 4. How the system is built (architecture)
 
-Nine application pieces sit on top of three infrastructure services. You bring the whole
-thing up with **one** Docker command. The AI (Ollama) runs on your host machine, not in
-Docker, and the containers reach it via `host.docker.internal`.
+Nine application pieces sit on top of the infrastructure services. You bring the whole
+thing up with **one** Docker command. The AI is **not** in Docker and **not** on your
+machine — the worker calls **OpenRouter** in the cloud over HTTPS using your API key.
+(Optionally you can point it at a local **Ollama** instead, reached via
+`host.docker.internal`.)
 
 ```mermaid
 flowchart TD
@@ -186,19 +202,20 @@ flowchart TD
     subgraph infra[Infrastructure]
         PG[(Postgres :5433<br/>datasets, meta_features, run_results)]
         RD[(Redis :6380<br/>job queue)]
-        MO[(MinIO :9000/:9001<br/>scripts + models)]
+        VOL[/shared volume<br/>generated scripts + model.joblib/]
     end
 
-    OL[Ollama :11434<br/>the LLM, on YOUR machine]
+    OR[OpenRouter — cloud API<br/>the LLM, via your API key<br/>optional: local Ollama :11434]
     LIB[[automl-reusables<br/>shared library: meta-features,<br/>B0/B1/B2 prompts, execution, RIR/PIR]]
 
     UI --> GW
     PM --> GW
     GW --> DS & MF & GEN & AN
     GEN --> RD --> WK
-    WK --> OL
+    WK --> OR
     DS & MF & GEN & WK & AN --> PG
-    WK --> MO
+    WK --> VOL
+    GEN --> VOL
     DS & MF & GEN & WK & AN -.imports.- LIB
 ```
 
@@ -212,15 +229,16 @@ flowchart TD
 4. **generation-service** puts a "generate" job on the Redis queue and immediately returns
    a job id (so you're not left waiting).
 5. The **worker** picks up the job, builds the prompt for your chosen condition
-   (B0/B1/B2) using the shared library, sends it to **Ollama**, gets Python code back,
-   **runs that code in an isolated subprocess**, and if it fails feeds the error back
-   to the AI and retries up to `max_iter` times.
+   (B0/B1/B2) using the shared library, sends it to **OpenRouter** (the default AI
+   provider), gets Python code back, **runs that code in an isolated subprocess**, and if
+   it fails feeds the error back to the AI and retries up to `max_iter` times.
 6. The worker writes the outcome (score, success/failure, error category, token counts,
    timings, and for B2 the reasoning + verification report) to the `run_results` table,
-   and uploads the script + trained model to **MinIO**.
+   and keeps the generated script + trained model on a **shared volume** (MinIO is disabled
+   by default, so there's no separate upload step).
 7. **analysis-service** reads `run_results` and answers the RQ1–RQ5 questions.
 8. The **frontend** polls until the run is done, then lets you download the script and the
-   trained model.
+   trained model (served by generation-service straight from that shared volume).
 
 ### Port map (what runs where)
 
@@ -235,11 +253,15 @@ flowchart TD
 | OpenUI web UI | http://localhost:3000 | `frontend-openui:3000` |
 | Postgres (database) | localhost:**5433** | `postgres:5432` |
 | Redis (queue) | localhost:**6380** | `redis:6379` |
-| MinIO S3 API / console | localhost:9000 / **9001** | `minio:9000 / :9001` |
-| Ollama (the AI) | http://localhost:11434 | reached as `host.docker.internal:11434` |
+| **OpenRouter (the AI)** | https://openrouter.ai *(cloud)* | reached over the internet with your API key |
+| Ollama (optional local AI) | http://localhost:11434 | reached as `host.docker.internal:11434` |
 
 > The database and Redis use *odd* host ports (5433, 6380) on purpose, so this project
 > can run alongside any other Postgres/Redis you already have without clashing.
+>
+> **MinIO is disabled by default** (its `:9000`/`:9001` ports are not exposed). Generated
+> scripts and models are downloaded through the generation-service API instead — see
+> [Section 11](#11-the-database-what-gets-stored-and-where).
 
 ---
 
@@ -252,30 +274,31 @@ folders because the Docker Compose files reference each other by relative path
 | # | Repository | Language | What it is | Container / Port |
 |---|---|---|---|---|
 | 1 | **automl-infra** | YAML/SQL | The conductor: Docker Compose files, the database schema, Postman snapshots. **You run everything from here.** | |
-| 2 | **automl-reusables** | Python | The shared brain: meta-features, the B0/B1/B2 prompts, code execution, the RIR/PIR verifier, experiment logic. Imported by every service. | (bind-mounted) |
-| 3 | **automl-data-service** | Python (FastAPI) | Dataset registry upload CSVs or import OpenML datasets. | `:8001` |
+| 2 | **automl-reusables** | Python | The shared brain: meta-features, the B0/B1/B2 prompts, code execution, the RIR/PIR verifier, experiment logic, and the LLM client (OpenRouter/Ollama). Imported by every service. | (bind-mounted) |
+| 3 | **automl-data-service** | Python (FastAPI) | Dataset registry — upload CSVs or import OpenML datasets. | `:8001` |
 | 4 | **automl-metafeatures-service** | Python (FastAPI) | Computes & caches the dataset meta-features. | `:8002` |
 | 5 | **automl-generation-service** | Python (FastAPI + RQ) | Queues LLM code-generation runs; a worker executes them. | `:8003` + worker |
 | 6 | **automl-analysis-service** | Python (FastAPI) | The statistics/analytics over all runs (RQ1–RQ5). | `:8004` |
 | 7 | **automl-gateway** | Python (FastAPI) | The single front door + two "do everything in one call" workflows. | `:8000` |
-| 8 | **automl-frontend** | Python (Streamlit) | The simple upload-and-run web page. | `:8501` |
+| 8 | **automl-streamlit** | Python (Streamlit) | The simple upload-and-run web page. (Container is named `automl-frontend`.) | `:8501` |
 | 9 | **automl-openui** | TypeScript (Next.js) | An alternative chat-style web UI (OpenUI). | `:3000` |
 
-Plus three infrastructure containers that `automl-infra` starts for you: **Postgres**
-(database), **Redis** (queue), and **MinIO** (file storage).
+Plus infrastructure containers that `automl-infra` starts for you: **Postgres** (database)
+and **Redis** (queue). **MinIO** (file storage) is included in the compose files but
+**disabled by default**.
 
 ---
 
-## 6. SETUP from a blank laptop to a running stack
+## 6. SETUP — from a blank laptop to a running stack
 
 This section assumes **you have installed nothing** and know nothing about the project.
 Follow it top to bottom. Commands are shown for **Windows (PowerShell)** since that is the
 project's primary environment; macOS/Linux equivalents are noted where they differ.
 
-### Step 0 Install the four prerequisites
+### Step 0 — Install the prerequisites
 
-You only need to do this once per machine. You do **not** need to install Python or any
-database yourself Docker handles all of that.
+You only need to do this once per machine. You do **not** need to install Python, a
+database, or (by default) any AI model locally — Docker and OpenRouter handle all of that.
 
 #### 0a. Docker Desktop (runs all the services)
 
@@ -288,31 +311,26 @@ docker --version
 ```
 
 You should see something like `Docker version 27.x`. If the command isn't found, Docker
-Desktop isn't installed or isn't on your PATH reopen the terminal after installing.
+Desktop isn't installed or isn't on your PATH — reopen the terminal after installing.
 
-#### 0b. Ollama (runs the AI model)
+#### 0b. An OpenRouter API key (this is how you get the AI)
 
-Ollama is what actually *runs the Large Language Model* this project talks to.
+OpenRouter is a hosted service that runs the Large Language Model for you — you don't
+download or train anything. You just need a key.
 
-1. Download from **https://ollama.com/download** and install it.
-2. Start the Ollama server (it listens on `http://localhost:11434`):
+1. Create a free account at **https://openrouter.ai**.
+2. Go to **https://openrouter.ai/keys** and create a new API key. It looks like
+   `sk-or-v1-...`. Copy it somewhere safe.
+3. Add a little credit to your OpenRouter account (the default model, `openai/gpt-oss-120b`,
+   is very cheap — a test run costs a fraction of a cent). Some models have a free tier.
 
-```bash
-ollama serve
-```
+You'll paste this key into the project's `.env` file in **Step 2**. That's all the AI
+setup there is — no `ollama pull`, no GPU, no multi-gigabyte download.
 
-> On Windows/macOS the Ollama app usually starts this automatically in the background, so
-> `ollama serve` may report that the address is already in use that's fine, it means
-> Ollama is already running.
-
-3. Verify it answers:
-
-```bash
-curl http://localhost:11434/api/tags
-```
-
-You'll get a JSON list of installed models (empty `[]` at first that's expected; you
-pull a model in Step 2).
+> **Prefer to run the AI locally instead?** You can. Install **Ollama**
+> (<https://ollama.com/download>), run `ollama serve`, `ollama pull` a model (e.g.
+> `qwen2.5-coder:7b`), and later set `LLM_PROVIDER=ollama` in `.env`. OpenRouter is the
+> default and the easiest path, so the rest of this guide assumes it.
 
 #### 0c. Git (downloads the code)
 
@@ -322,14 +340,14 @@ Download from **https://git-scm.com/downloads**, install, and verify:
 git --version
 ```
 
-#### 0d. Postman (lets you call the API by clicking) *optional but recommended*
+#### 0d. Postman (lets you call the API by clicking) — *optional but recommended*
 
 Download from **https://www.postman.com/downloads/**. If you'd rather not install it, you
 can use the built-in interactive docs page in your browser instead (explained in Step 7).
 
 ---
 
-### Step 1 Create a folder and clone all nine repositories
+### Step 1 — Create a folder and clone all nine repositories
 
 The repositories must end up as **siblings inside one parent folder**, because the Docker
 Compose files look for each other at `../automl-<name>`. Pick any location you like.
@@ -345,7 +363,7 @@ git clone https://github.com/Major-Proj-AutoML/automl-metafeatures-service.git
 git clone https://github.com/Major-Proj-AutoML/automl-generation-service.git
 git clone https://github.com/Major-Proj-AutoML/automl-analysis-service.git
 git clone https://github.com/Major-Proj-AutoML/automl-gateway.git
-git clone https://github.com/Major-Proj-AutoML/automl-frontend.git
+git clone https://github.com/Major-Proj-AutoML/automl-streamlit.git
 git clone https://github.com/Major-Proj-AutoML/automl-openui.git
 ```
 
@@ -362,49 +380,59 @@ automl-stack/
 ├── automl-generation-service/
 ├── automl-analysis-service/
 ├── automl-gateway/
-├── automl-frontend/
+├── automl-streamlit/
 └── automl-openui/
 ```
 
 > **Why all nine?** The full Docker Compose file builds the two web UIs
-> (`automl-frontend`, `automl-openui`) from their folders. If they're missing, the "full
+> (`automl-streamlit`, `automl-openui`) from their folders. If they're missing, the "full
 > stack" start command fails because it can't find those build folders. Clone all nine and
-> you're safe.
+> you're safe. **Clone the frontend with its real name `automl-streamlit`** — the compose
+> file expects the folder to be `../automl-streamlit`.
 
 ---
 
-### Step 2 Pull an AI model into Ollama
+### Step 2 — Set your OpenRouter API key
 
-The system needs at least one LLM to generate code. Two choices:
+The stack reads configuration from `automl-infra/.env`. Create it from the template and
+paste in your key.
 
-**Option A the project's default example model (hosted, needs an Ollama account):**
+**Windows (PowerShell), from the `automl-infra` folder:**
 
-```bash
-ollama pull gpt-oss:120b-cloud
+```powershell
+cd automl-infra
+copy .env.example .env
+notepad .env
 ```
 
-Models whose names end in `-cloud` are huge (120 billion parameters) and run on Ollama's
-*cloud* servers, not your laptop so they need you to be signed in with a free Ollama
-account (`ollama signin`). It is the default model referenced in this project's examples.
+**macOS / Linux:** `cp .env.example .env` then edit with any text editor.
 
-**Option B a small model that runs fully on your own machine (no account needed):**
+In `.env`, set your key (the line is already there, just fill it in):
 
 ```bash
-ollama pull qwen2.5-coder:7b
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+# OPENROUTER_URL=https://openrouter.ai/api/v1   # optional, this is the default
 ```
 
-Any Ollama-supported model works; you just pass its exact name to the system later
-(`llm_backend`). Confirm your model is present:
+That's the only required change. The default model the examples use is
+**`gpt-oss:120b-cloud`**, which the stack automatically maps to OpenRouter's
+**`openai/gpt-oss-120b`**. You can also pass any OpenRouter model slug directly (e.g.
+`openai/gpt-oss-120b`, `anthropic/claude-3.5-sonnet`) — whatever you set as `llm_backend`
+when you start a run.
 
-```bash
-ollama list
-```
+> **Using a local Ollama instead?** Set `LLM_PROVIDER=ollama` and
+> `OLLAMA_URL=http://host.docker.internal:11434`, make sure `ollama serve` is running on
+> your host with a model pulled, then use that model's name as `llm_backend`.
+
+> **Security:** `.env` holds a secret. It's already in `.gitignore` — never commit it or
+> paste the key into screenshots/issues.
 
 ---
 
-### Step 3 Start the entire stack (one command)
+### Step 3 — Start the entire stack (one command)
 
-Go into the `automl-infra` folder and bring everything up. The two `-f` flags layer the
+From the `automl-infra` folder, bring everything up. The two `-f` flags layer the
 application services on top of the base infrastructure.
 
 ```bash
@@ -419,13 +447,13 @@ docker compose -f docker-compose.yml -f docker-compose.full.yml up -d --build
 **The first run takes 5–10 minutes** (it downloads base images and builds the Python
 services). Later starts take ~30 seconds.
 
-> *Optional:* copy `automl-infra/.env.example` to `.env` first if you want to change any
-> ports, passwords, or point at a non-default Ollama host (`OLLAMA_URL`). The defaults work
-> out of the box, so you can skip this.
+> The services will **start** even if you forgot the API key — but any generation run will
+> fail fast with a clear message telling you to set `OPENROUTER_API_KEY`. Set it in Step 2
+> and you're fine.
 
 ---
 
-### Step 4 Verify everything is alive
+### Step 4 — Verify everything is alive
 
 **A. All containers up?**
 
@@ -434,7 +462,7 @@ docker compose -f docker-compose.yml -f docker-compose.full.yml ps
 ```
 
 You want every container `Up`, with `Auto-ML-Postgres` and `Auto-ML-Redis` marked
-`(healthy)`.
+`(healthy)`. (You won't see a MinIO container — it's disabled by default.)
 
 **B. Is the front door healthy?** Open http://localhost:8000/health in a browser, or:
 
@@ -442,20 +470,22 @@ You want every container `Up`, with `Auto-ML-Postgres` and `Auto-ML-Redis` marke
 curl http://localhost:8000/health
 ```
 
-Expected every upstream `true`:
+Expected — every upstream `true`:
 
 ```json
 {"status":"ok","upstream":{"data":true,"metafeatures":true,"generation":true,"analysis":true}}
 ```
 
-**C. Can the worker reach the AI?**
+**C. Is the AI key wired into the worker?**
 
 ```bash
-docker exec automl-generation-worker curl -s http://host.docker.internal:11434/api/tags
+docker exec automl-generation-worker printenv OPENROUTER_API_KEY
 ```
 
-You should see your Ollama model listed. If any check fails, jump to
-[Troubleshooting](#13-troubleshooting).
+You should see your `sk-or-...` key printed. If it's blank, re-check Step 2 and restart the
+worker (`docker compose -f docker-compose.yml -f docker-compose.full.yml restart generation-worker generation-service`).
+The real end-to-end check is simply running a generation (Section 7, Test 3). If any check
+fails, jump to [Troubleshooting](#13-troubleshooting).
 
 🎉 **You now have the full stack running.** Move on to actually using it.
 
@@ -466,23 +496,24 @@ You should see your Ollama model listed. If any check fails, jump to
 There are two ways to use it: the **web page** (easiest) or the **API** (for testing and
 automation). Both do the same thing under the hood.
 
-### Option A The web UI (recommended for a first try)
+### Option A — The web UI (recommended for a first try)
 
 1. Open **http://localhost:8501** (the Streamlit app).
 2. Upload any CSV suitable for supervised ML (e.g. a housing dataset).
 3. Pick the **target column** (what to predict) and the **task type** (`regression`,
    `binary_classification`, or `multiclass_classification`).
 4. Choose a **prompt condition** (`b0_naive`, `b1_schema`, or `b2_metafeature`) and your
-   **LLM backend** (the model name you pulled in Step 2).
+   **LLM backend**. The default `gpt-oss:120b-cloud` works out of the box (it maps to
+   OpenRouter's `openai/gpt-oss-120b`); you can also type any OpenRouter model slug.
 5. Click run. The page registers the dataset, extracts meta-features, enqueues the run,
-   and polls until the worker finishes then lets you **download the generated Python
+   and polls until the worker finishes — then lets you **download the generated Python
    script and the trained `model.joblib`.**
 
 There's also an alternative chat-style UI at **http://localhost:3000** (OpenUI).
 
-### Option B The API (Postman or your browser)
+### Option B — The API (Postman or your browser)
 
-Every service publishes **interactive docs** just open the `/docs` URL in a browser,
+Every service publishes **interactive docs** — just open the `/docs` URL in a browser,
 fill in the form, and hit **Execute**. No Postman needed:
 
 - Gateway (covers everything): http://localhost:8000/docs
@@ -491,11 +522,11 @@ fill in the form, and hit **Execute**. No Postman needed:
 **Everything goes through the gateway at `http://localhost:8000`.** Here's the standard
 test walkthrough:
 
-#### Test 1 Health
+#### Test 1 — Health
 `GET http://localhost:8000/health` → expect all upstreams `true`.
 
-#### Test 2 Upload a CSV and get meta-features (no AI involved, ~1 second)
-`POST http://localhost:8000/workflows/upload-and-extract` in Postman choose **Body →
+#### Test 2 — Upload a CSV and get meta-features (no AI involved, ~1 second)
+`POST http://localhost:8000/workflows/upload-and-extract` — in Postman choose **Body →
 form-data**:
 
 | Key | Type | Value |
@@ -506,34 +537,34 @@ form-data**:
 
 The response includes `dataset.id` and the computed meta-features. **Note the `id`.**
 
-#### Test 3 Full end-to-end run (AI writes code, runs it, scores it)
-`POST http://localhost:8000/workflows/full-run` same body as Test 2, plus:
+#### Test 3 — Full end-to-end run (AI writes code, runs it, scores it)
+`POST http://localhost:8000/workflows/full-run` — same body as Test 2, plus:
 
 | Key | Value | Meaning |
 |---|---|---|
 | `condition` | `b2_metafeature` | prompt style (`b0_naive` / `b1_schema` / `b2_metafeature`) |
-| `llm_backend` | `gpt-oss:120b-cloud` | the Ollama model you pulled |
+| `llm_backend` | `gpt-oss:120b-cloud` | the model (an alias for OpenRouter's `openai/gpt-oss-120b`; any OpenRouter slug also works) |
 | `seed` | `42` | reproducibility |
 | `max_iter` | `3` | how many times to retry if generated code fails |
 | `timeout_seconds` | `300` | per-attempt limit for the generated code |
 
-You get an **immediate** reply with an `rq_job_id` the actual work runs in the
+You get an **immediate** reply with an `rq_job_id` — the actual work runs in the
 background (20–60 s).
 
-#### Test 4 Poll for the result
+#### Test 4 — Poll for the result
 `GET http://localhost:8000/runs?dataset_id=<id>&limit=1`
 
 - `[]` → worker hasn't started yet; wait and retry.
 - `"success": null` → still running.
-- `"success": true` → done read `test_score`.
-- `"success": false` → failed read `error_category` / `error_message`.
+- `"success": true` → done — read `test_score`.
+- `"success": false` → failed — read `error_category` / `error_message`.
 
 **Reading the score:**
 - **Regression** → a *negative RMSE*; closer to 0 is better (`-48728` means an error of
   ~48,728 in the target's units).
 - **Classification** → *balanced accuracy* in `[0, 1]`; higher is better.
 
-#### Test 5 Analytics
+#### Test 5 — Analytics
 Once you have runs, hit the analysis endpoints (also available via the gateway):
 
 | Request | Tells you |
@@ -561,8 +592,13 @@ docker exec -it Auto-ML-Postgres psql -U automl -d automl -c "SELECT id, dataset
 docker logs -f automl-generation-worker
 ```
 
-The MinIO console (generated scripts + trained models) is at **http://localhost:9001**
-(default login `automl` / `automl_dev_pw`).
+The generated **scripts and trained models** are downloaded through the API (MinIO is
+disabled by default):
+
+```bash
+curl -OJ http://localhost:8000/runs/<run_id>/script   # the generated pipeline .py
+curl -OJ http://localhost:8000/runs/<run_id>/model    # the trained model.joblib
+```
 
 ---
 
@@ -588,21 +624,23 @@ Each service is a small **FastAPI** app (Python) unless noted. They all import t
 `automl-reusables` library, share the Postgres database, and are reachable both directly
 and through the gateway.
 
-### 1. `automl-infra` the conductor
+### 1. `automl-infra` — the conductor
 No code of its own; it *orchestrates* the others.
-- `docker-compose.yml` base infra: Postgres + Redis + MinIO (+ a one-shot container that
-  creates the MinIO buckets).
-- `docker-compose.full.yml` overlay adding the 5 app services, the worker, and the 2 UIs.
-- `db/init/*.sql` the database schema; runs automatically on Postgres's first start.
-- `postman/` OpenAPI snapshots of every service, importable into Postman.
-- `CITATION.cff` citation metadata (authors, version, DOI). GitHub's "Cite this
+- `docker-compose.yml` — base infra: Postgres + Redis (+ an optional, commented-out MinIO
+  block you can re-enable).
+- `docker-compose.full.yml` — overlay adding the 5 app services, the worker, and the 2 UIs.
+- `.env.example` — the settings template, including `LLM_PROVIDER` / `OPENROUTER_API_KEY`.
+- `db/init/*.sql` — the database schema; runs automatically on Postgres's first start.
+- `postman/` — OpenAPI snapshots of every service, importable into Postman.
+- `CITATION.cff` — citation metadata (authors, version, DOI). GitHub's "Cite this
   repository" button reads this.
 
-### 2. `automl-reusables` the shared brain
+### 2. `automl-reusables` — the shared brain
 A `pip`-installable Python library imported by every service as `src.*`. It holds the
-*actual research logic*. Fully detailed in [Section 10](#10-the-shared-brain-automl-reusables).
+*actual research logic* — including the LLM client that talks to OpenRouter (or Ollama).
+Fully detailed in [Section 10](#10-the-shared-brain-automl-reusables).
 
-### 3. `automl-data-service` (`:8001`) dataset registry
+### 3. `automl-data-service` (`:8001`) — dataset registry
 - Accepts CSV uploads → validates → splits into train/test → caches the files → records
   the dataset in Postgres.
 - Imports OpenML datasets by id (a built-in catalogue of 28 CC18 classification datasets +
@@ -610,41 +648,45 @@ A `pip`-installable Python library imported by every service as `src.*`. It hold
 - Key endpoints: `POST /datasets`, `POST /datasets/openml`, `GET /datasets`,
   `GET /datasets/{id}/preview`, `DELETE /datasets/{id}`.
 
-### 4. `automl-metafeatures-service` (`:8002`) the "fingerprint" computer
+### 4. `automl-metafeatures-service` (`:8002`) — the "fingerprint" computer
 - Given a `dataset_id`, reads the training CSV and computes the **four meta-feature
   groups**, then caches them in Postgres (second call returns the cache unless `?force=true`).
 - Key endpoints: `POST /meta-features/{id}` (compute), `GET /meta-features/{id}` (fetch).
 
-### 5. `automl-generation-service` (`:8003` + worker) the engine room
+### 5. `automl-generation-service` (`:8003` + worker) — the engine room
 - The **web** part queues jobs; the **worker** part does the slow work.
-- The worker: fetches the dataset → builds the B0/B1/B2 prompt → calls **Ollama** → **runs
-  the generated code in an isolated subprocess** → on failure, feeds the error back and
-  retries up to `max_iter` → records the outcome in `run_results` → uploads the script and
-  trained model to MinIO.
+- The worker: fetches the dataset → builds the B0/B1/B2 prompt → calls the **LLM provider
+  (OpenRouter by default; Ollama optional)** → **runs the generated code in an isolated
+  subprocess** → on failure, feeds the error back and retries up to `max_iter` → records
+  the outcome in `run_results` → keeps the script + trained model on the shared volume
+  (served back through the download endpoints; MinIO disabled by default).
 - Key endpoints: `POST /runs`, `GET /runs`, `GET /runs/{id}/script`, `GET /runs/{id}/model`,
   `POST /sweeps`, `GET /sweeps/{id}`.
 - Has **two** Dockerfiles: `Dockerfile` (web) and `Dockerfile.worker` (background worker).
 
-### 6. `automl-analysis-service` (`:8004`) the statistician
+### 6. `automl-analysis-service` (`:8004`) — the statistician
 - **Read-only.** It never queues work; it aggregates `run_results` to answer RQ1–RQ5
   (including a paired Wilcoxon signed-rank significance test).
 - Key endpoints: `GET /analysis/summary|errors|iterations|models|size-stratified`,
   `GET /analysis/wilcoxon?a=B0&b=B2`.
 
-### 7. `automl-gateway` (`:8000`) the front door
+### 7. `automl-gateway` (`:8000`) — the front door
 - Re-exposes every backend endpoint under one base URL, handles CORS for the browser UIs,
   and adds two **composed workflows** that chain multiple services in one call:
-  - `POST /workflows/upload-and-extract` upload → meta-features.
-  - `POST /workflows/full-run` upload → meta-features → enqueue a run.
+  - `POST /workflows/upload-and-extract` — upload → meta-features.
+  - `POST /workflows/full-run` — upload → meta-features → enqueue a run.
 - `GET /health` reports the health of all four upstream services at once.
 
-### 8. `automl-frontend` (`:8501`) the simple web page
+### 8. `automl-streamlit` (`:8501`) — the simple web page
 - A single-file **Streamlit** app (`app.py`). Upload a CSV, pick a condition + model, run,
-  and download the script + trained model. Talks only to the gateway.
+  and download the script + trained model. Talks only to the gateway. (Its container is
+  named `automl-frontend`.)
 
-### 9. `automl-openui` (`:3000`) the alternative UI
+### 9. `automl-openui` (`:3000`) — the alternative UI
 - A **Next.js / TypeScript** chat-style frontend (OpenUI). Points at the gateway and, for
-  its own chat, at an OpenAI-compatible endpoint (Ollama's `/v1`).
+  its own chat box, at an OpenAI-compatible endpoint. By default that chat still points at
+  a local Ollama (`/v1`), so the OpenUI chat feature needs Ollama running — the main
+  pipeline generation uses OpenRouter regardless.
 
 ---
 
@@ -652,24 +694,24 @@ A `pip`-installable Python library imported by every service as `src.*`. It hold
 
 Everything that *is* the research lives here, under `src/`. It's importable as `src.*` by
 every service (the services bind-mount this folder and set `PYTHONPATH`, so editing a file
-here and restarting one service picks up the change no rebuild).
+here and restarting one service picks up the change — no rebuild).
 
 | Module | What it does |
 |---|---|
 | `src/contracts.py` | The shared data shapes (Pydantic models): `MetaFeatures`, `RunResult`, `GeneratedPipeline`, `ErrorCategory`, `TaskType`. The "common language" every service speaks. |
 | `src/conditions/` | **The B0/B1/B2 prompt builders.** `base.py` defines the interface; `b0_naive.py`, `b1_schema.py`, `b2_metafeature.py` each build the prompt text for that condition. The B2 file also contains the numbered decision rulebook and the mandatory structured-reasoning spec. |
 | `src/meta_features/` | **The meta-feature extractors**, in four groups: `simple.py` (counts, missingness, class balance), `distributional.py` (skewness, outliers), `information.py` (correlations), `landmarking.py` (quick "probe" model scores). `extractor.py` ties them together. |
-| `src/execution/` | Runs the AI-generated code safely. `runner.py` executes a pipeline in an isolated subprocess; `error_taxonomy.py` classifies *why* a run failed (`import_error`, `missing_name`, `infrastructure`, …); `metrics.py` scores it; `verification.py` is the original B2 faithfulness check. |
+| `src/execution/` | Runs the AI-generated code safely. `runner.py` executes a pipeline in an isolated subprocess (and auto-inserts missing scikit-learn "enable-experimental" imports); `error_taxonomy.py` classifies *why* a run failed (`import_error`, `missing_name`, `infrastructure`, …); `metrics.py` scores it; `verification.py` is the original B2 faithfulness check. |
+| `src/experiments/` | Research orchestration + **the LLM client**: `runner.py` holds `call_llm` / `call_llm_with_usage`, which route to **OpenRouter** (`openai/gpt-oss-120b` and friends) or **Ollama** based on `LLM_PROVIDER`, and also parse token usage; `datasets.py` (load OpenML + custom CSVs); `analysis.py` (the RQ1–RQ5 functions the analysis-service exposes). |
 | `src/verification/` | **The new RIR/PIR verifier (the research contribution).** `rir.py` = Reasoning Intermediate Representation (the AI's plan as checkable claims); `pir.py` = Program Intermediate Representation (what the code actually does, via Python's `ast`); `engine.py`, `evaluation.py`, `cli.py` drive and score the comparison. Pure standard-library so it runs anywhere. |
-| `src/experiments/` | Research orchestration: `datasets.py` (load OpenML + custom CSVs), `runner.py` (run a condition against a dataset end-to-end), `analysis.py` (the RQ1–RQ5 functions the analysis-service exposes). |
 
 ### The four meta-feature groups (what B2 actually "sees")
 
-1. **Simple** row/column counts, overall missing ratio, number of numeric vs categorical
+1. **Simple** — row/column counts, overall missing ratio, number of numeric vs categorical
    columns, class balance ratio.
-2. **Distributional** per-column skewness and outlier ratios.
-3. **Information** pairwise correlations between features (e.g. max/mean correlation).
-4. **Landmarking** the scores of cheap "probe" models (a decision stump, 1-NN, a linear
+2. **Distributional** — per-column skewness and outlier ratios.
+3. **Information** — pairwise correlations between features (e.g. max/mean correlation).
+4. **Landmarking** — the scores of cheap "probe" models (a decision stump, 1-NN, a linear
    model) that hint at how hard the problem is and what kind of model might suit it.
 
 The B2 rulebook maps thresholds on these numbers to concrete preprocessing choices (e.g.
@@ -687,12 +729,18 @@ leaves a durable record here.
 |---|---|---|
 | `datasets` | One row per registered CSV/OpenML dataset. | `id`, `name`, `source` (`openml`/`custom`), `target_col`, `task_type`, `train_path`, `test_path`, `n_rows`, `n_cols` |
 | `meta_features` | The cached meta-feature profile per dataset (as JSON). | `dataset_id`, `features` (JSONB), `computed_at` |
-| `run_results` | **The heart of the data** one row per AI run. | `dataset_id`, `condition` (`B0`/`B1`/`B2`), `llm_backend`, `seed`, `success`, `test_score`, `error_category`, `iterations_used`, `runtime_seconds`, `prompt_tokens`, `completion_tokens`, `total_tokens`, and for B2: `reasoning_trace` + `verification_report` (JSONB) |
+| `run_results` | **The heart of the data** — one row per AI run. | `dataset_id`, `condition` (`B0`/`B1`/`B2`), `llm_backend`, `seed`, `success`, `test_score`, `error_category`, `iterations_used`, `runtime_seconds`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `generated_code_path`, and for B2: `reasoning_trace` + `verification_report` (JSONB) |
 | `sweep_jobs` | Progress of batch sweeps. | `rq_job_id`, `status`, `params`, `total_cells`, `completed_cells`, `failed_cells` |
 
-- **MinIO** (not Postgres) stores the big files: the generated `.py` scripts (bucket
-  `scripts`) and the trained `model.joblib` files (bucket `models`).
-- **Redis** stores the live job queue (transient it's a to-do list, not a record).
+- **Generated files** — the `.py` scripts and the trained `model.joblib` — are written to a
+  **shared volume** (`automl-reusables/logs/runs/`, mounted into both the worker and the
+  generation-service). You download them through `GET /runs/{id}/script` and
+  `GET /runs/{id}/model`. The `run_results.generated_code_path` column records where each
+  script lives.
+- **MinIO** (the old S3-style store for these files) is **disabled by default** — its
+  images are no longer publicly pullable. The compose files keep it as a commented-out,
+  re-enablable block if you have a mirror you trust.
+- **Redis** stores the live job queue (transient — it's a to-do list, not a record).
 
 ---
 
@@ -709,9 +757,13 @@ Run these from the `automl-infra/` folder. `COMPOSE` below is shorthand for
 | Rebuild after a Dockerfile change | `docker compose $COMPOSE up -d --build` |
 | **Wipe everything** (deletes the DB, Redis, uploaded CSVs) | `docker compose $COMPOSE down -v` |
 
-Service names for `restart`: `postgres`, `redis`, `minio`, `data-service`,
-`metafeatures-service`, `generation-service`, `generation-worker`, `analysis-service`,
-`gateway`, `frontend`, `frontend-openui`.
+Service names for `restart`: `postgres`, `redis`, `data-service`, `metafeatures-service`,
+`generation-service`, `generation-worker`, `analysis-service`, `gateway`, `frontend`,
+`frontend-openui`. (There is no `minio` service by default.)
+
+> Changed your API key or switched `LLM_PROVIDER` in `.env`? Restart the worker and
+> generation service so they pick it up:
+> `docker compose $COMPOSE restart generation-worker generation-service`.
 
 ---
 
@@ -719,15 +771,16 @@ Service names for `restart`: `postgres`, `redis`, `minio`, `data-service`,
 
 | Symptom | Likely cause & fix |
 |---|---|
-| `/health` shows an upstream `false` | That service crashed on startup. `docker logs <that-container>` usually a Python import error. |
-| A run stays "still running" for minutes | The AI is unreachable. `docker logs automl-generation-worker` confirm `ollama serve` is up and `docker exec automl-generation-worker curl http://host.docker.internal:11434/api/tags` works. |
-| Run row shows `error_category: "infrastructure"` | Worker couldn't reach Ollama. Same fix as above. |
-| Run row shows `error_category: "missing_name"` | The AI wrote code using a name it never imported. This is *expected sometimes* the pipeline auto-retries up to `max_iter`. |
+| `/health` shows an upstream `false` | That service crashed on startup. `docker logs <that-container>` — usually a Python import error. |
+| A service exits immediately with `No module named 'psycopg'` | A SQLAlchemy 2.1 quirk: a bare `postgresql://` URL now wants the psycopg **v3** driver, which isn't installed. The stack ships the fix (`DATABASE_URL` uses `postgresql+psycopg2://`). Make sure you're on the latest `automl-infra`, then recreate: `docker compose $COMPOSE up -d --force-recreate`. |
+| A run stays "still running" for minutes | The AI provider is unreachable or the key is missing. `docker logs automl-generation-worker`, and confirm `OPENROUTER_API_KEY` is set (`docker exec automl-generation-worker printenv OPENROUTER_API_KEY`). |
+| Run row shows `error_category: "infrastructure"` | The worker couldn't reach the AI: missing/invalid `OPENROUTER_API_KEY`, no OpenRouter credit, or no internet. (If using Ollama: `ollama serve` isn't reachable.) The error message says which. |
+| Run row shows `error_category: "missing_name"` | The AI wrote code using a name it never imported. This is *expected sometimes* — the pipeline auto-retries up to `max_iter`. |
+| `401`/`402` or auth/credit error from OpenRouter | Check the key is correct in `.env`, and that your OpenRouter account has credit (or the model has a free tier). Then restart the worker. Or switch to a local model with `LLM_PROVIDER=ollama`. |
 | `Port is already allocated` on `5433` or `6380` | Something else uses those host ports. Free them, or set `POSTGRES_PORT` / `REDIS_PORT` in `automl-infra/.env`. |
 | `No module named 'src'` in a service log | The `../automl-reusables` folder isn't a sibling. Confirm all nine repos sit side by side. |
-| `up --build` fails saying it can't find `../automl-frontend` or `../automl-openui` | You didn't clone all nine repos. Clone the missing ones (Step 1). |
-| Ollama runs on another machine | Set `OLLAMA_URL=http://that-host:11434` in `automl-infra/.env` before starting. |
-| `-cloud` model errors about auth | `-cloud` models run on Ollama's servers run `ollama signin`, or switch to a local model like `qwen2.5-coder:7b`. |
+| `up --build` fails saying it can't find `../automl-streamlit` or `../automl-openui` | You didn't clone all nine repos, or you cloned the frontend under the wrong name. The frontend repo must be the folder **`automl-streamlit`** (Step 1). |
+| Want to run the AI locally | Set `LLM_PROVIDER=ollama` and `OLLAMA_URL=http://host.docker.internal:11434` in `.env`, run `ollama serve` with a model pulled, then restart the worker. |
 | Everything is wedged | `docker compose $COMPOSE down` then `docker compose $COMPOSE up -d --build`. |
 
 ---
@@ -745,10 +798,10 @@ resolves to the latest version:
 Full author/version metadata is in `automl-infra/CITATION.cff` (or use GitHub's "Cite this
 repository" button on the `automl-infra` repo).
 
-**Project.** *VESIT AutoML* a final-year B.E. (AI & Data Science) major project exploring
-whether showing an LLM a dataset's meta-features produces better and, above all, more
-*verifiable* automated ML pipelines. The newest thread mechanical verification of
-reasoning–code alignment (RIR/PIR) is under active development.
+**Project.** *VESIT AutoML* — a final-year B.E. (AI & Data Science) major project exploring
+whether showing an LLM a dataset's meta-features produces better — and, above all, more
+*verifiable* — automated ML pipelines. The newest thread — mechanical verification of
+reasoning–code alignment (RIR/PIR) — is under active development.
 
 ---
 
